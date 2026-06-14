@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mess Manager</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f0f4f8;--card:#fff;--border:#e2e8f0;--text:#1a202c;--muted:#718096;
+  --primary:#3b82f6;--pd:#2563eb;--success:#16a34a;--danger:#dc2626;--warn:#d97706;
+  --sbg:#f0fdf4;--dbg:#fef2f2;--wbg:#fffbeb;--r:10px;
+}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* LOGIN */
+#login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#1e3a5f 0%,#3b82f6 100%);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px}
+#login-screen.hidden{display:none}
+.login-box{background:#fff;border-radius:20px;padding:32px 28px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.login-logo{font-size:48px;text-align:center;margin-bottom:8px}
+.login-title{font-size:22px;font-weight:800;text-align:center;color:#1e3a5f;margin-bottom:4px}
+.login-sub{font-size:13px;color:var(--muted);text-align:center;margin-bottom:24px}
+.login-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px}
+.login-input{width:100%;padding:12px 14px;border:2px solid var(--border);border-radius:10px;font-size:15px;outline:none;transition:.2s}
+.login-input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+.login-btn{width:100%;padding:13px;background:var(--primary);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:14px}
+.login-btn:hover{background:var(--pd)}
+.login-btn:disabled{opacity:.6;cursor:not-allowed}
+.login-err{color:var(--danger);font-size:12px;text-align:center;margin-top:10px;min-height:18px}
+.login-info{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;font-size:12px;color:#1e40af;margin-top:12px;line-height:1.6}
+
+/* LOADING */
+#loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,.85);z-index:500;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+#loading-overlay.hidden{display:none}
+.spinner{width:36px;height:36px;border:4px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* TOPBAR */
+.topbar{background:var(--primary);color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;gap:8px}
+.topbar h1{font-size:17px;font-weight:700;white-space:nowrap}
+.topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.month-badge{font-size:12px;background:rgba(255,255,255,.2);padding:4px 10px;border-radius:20px;font-weight:600;white-space:nowrap}
+.user-pill{font-size:11px;background:rgba(255,255,255,.15);padding:4px 10px;border-radius:20px;font-weight:600;display:flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap}
+.user-pill:hover{background:rgba(255,255,255,.25)}
+.tabs{display:flex;background:var(--card);border-bottom:1px solid var(--border);overflow-x:auto;position:sticky;top:49px;z-index:99}
+.tab{padding:11px 16px;font-size:13px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
+.tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+.page{display:none;padding:14px;max-width:1200px;margin:auto}
+.page.active{display:block}
+.card{background:var(--card);border-radius:var(--r);border:1px solid var(--border);padding:16px;margin-bottom:14px}
+.card-title{font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px}
+.stat-lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.stat-val{font-size:20px;font-weight:700}
+.green{color:var(--success)}.red{color:var(--danger)}.blue{color:var(--primary)}.warn{color:var(--warn)}
+label.lbl{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+input[type=text],input[type=number],input[type=date],select{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;color:var(--text);outline:none;background:var(--card)}
+input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(59,130,246,.1)}
+.btn{padding:8px 14px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;border:none;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:var(--pd)}
+.btn-success{background:var(--success);color:#fff}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-danger-o{background:transparent;color:var(--danger);border:1px solid var(--border)}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}.btn-ghost:hover{background:var(--bg)}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.badge{display:inline-flex;align-items:center;font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px}
+.bg{background:var(--sbg);color:var(--success)}.br{background:var(--dbg);color:var(--danger)}.bb{background:#eff6ff;color:var(--primary)}.bw{background:var(--wbg);color:var(--warn)}
+.badge-manager{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+.badge-member{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1a202c;color:#fff;padding:9px 18px;border-radius:10px;font-size:13px;font-weight:500;display:none;align-items:center;gap:6px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.empty{text-align:center;padding:32px 16px;color:var(--muted);font-size:13px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:none;align-items:center;justify-content:center}
+.modal{background:var(--card);border-radius:14px;padding:22px;max-width:360px;width:90%;max-height:85vh;overflow-y:auto}
+.modal h3{font-size:16px;font-weight:700;margin-bottom:8px}
+.modal p{font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.6}
+.form-g{display:grid;gap:10px;margin-bottom:10px}
+.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr 1fr}
+.sheet-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.sheet{border-collapse:collapse;font-size:12px;min-width:max-content}
+.sheet th,.sheet td{border:1px solid var(--border);text-align:center;padding:0}
+.sheet .sh-head{background:#1e3a5f;color:#fff;font-size:11px;font-weight:700;padding:6px 8px;white-space:nowrap}
+.sheet .sh-name{background:#f8fafc;font-weight:700;font-size:13px;padding:8px 12px;text-align:left;white-space:nowrap;position:sticky;left:0;z-index:2;border-right:2px solid var(--border)}
+.sheet .sh-date-head{background:#1e3a5f;color:#fff;font-weight:700;padding:5px 4px;min-width:54px}
+.sheet .sh-sub{background:#2d5a8e;color:#dbeafe;font-size:10px;font-weight:600;padding:3px 2px;width:27px}
+.sheet td.cell{padding:2px;width:28px}
+.sheet td.cell input{width:28px;height:30px;border:none;text-align:center;font-size:13px;font-weight:600;background:transparent;padding:0;border-radius:0;color:var(--text)}
+.sheet td.cell input:focus{background:#eff6ff;outline:none}
+.sheet td.cell input.has-val{background:#f0fdf4}
+.sheet td.cell input[readonly]{cursor:default}
+.sheet .sh-total{background:#fef9c3;font-weight:700;padding:6px 8px;font-size:13px}
+.sheet .sh-cost{background:#fde68a;font-weight:700;padding:6px 8px;font-size:13px;color:#92400e}
+.sheet .sh-bal-pos{background:#dcfce7;font-weight:700;padding:6px 8px;color:#166534}
+.sheet .sh-bal-neg{background:#fee2e2;font-weight:700;padding:6px 8px;color:#991b1b}
+.sheet .sh-rate{background:#dbeafe;font-weight:700;padding:6px 8px;color:#1e40af}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-bottom:10px}
+.legend span{display:flex;align-items:center;gap:4px}
+.legend .dot{width:10px;height:10px;border-radius:2px}
+.item-row{display:grid;grid-template-columns:1fr 100px 32px;gap:6px;align-items:center;margin-bottom:6px}
+.del-icon{background:none;border:none;cursor:pointer;color:#ccc;font-size:16px;padding:4px;border-radius:4px;width:32px;height:32px;display:flex;align-items:center;justify-content:center}
+.del-icon:hover{color:var(--danger);background:var(--dbg)}
+.divider{height:1px;background:var(--border);margin:10px 0}
+table.simple{width:100%;border-collapse:collapse;font-size:13px}
+table.simple th{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;padding:7px 10px;border-bottom:1px solid var(--border);text-align:left}
+table.simple td{padding:9px 10px;border-bottom:1px solid #f7f8fa;vertical-align:middle}
+table.simple tr:last-child td{border-bottom:none}
+table.simple tr:hover td{background:#fafbff}
+.readonly-notice{background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:10px 14px;font-size:12px;color:#92400e;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.vote-option{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:2px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:.15s}
+.vote-option:hover{background:#eff6ff;border-color:var(--primary)}
+.vote-option.selected{background:#eff6ff;border-color:var(--primary)}
+.vote-bar-wrap{background:#f0f4f8;border-radius:4px;height:8px;flex:1;margin:0 10px}
+.vote-bar{background:var(--primary);border-radius:4px;height:100%;transition:.4s}
+.manager-banner{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.sync-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;margin-left:4px}
+.sync-dot.off{background:#f87171}
+@media(max-width:600px){.g2,.g3{grid-template-columns:1fr}.page{padding:10px}}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <div style="font-size:13px;color:var(--muted)">লোড হচ্ছে...</div>
+</div>
+
+<!-- LOGIN -->
+<div id="login-screen" class="hidden">
+  <div class="login-box">
+    <div class="login-logo">🍛</div>
+    <div class="login-title">Mess Manager</div>
+    <div class="login-sub" id="login-sub-text">আপনার মোবাইল নম্বর দিয়ে লগইন করুন</div>
+
+    <div id="login-form-area">
+      <label class="login-label">মোবাইল নম্বর</label>
+      <input class="login-input" type="tel" id="login-phone" placeholder="01XXXXXXXXX" maxlength="11" oninput="this.value=this.value.replace(/\D/g,'')">
+      <button class="login-btn" onclick="doLogin()" id="login-btn">লগইন করুন →</button>
+      <div class="login-err" id="login-err"></div>
+    </div>
+
+    <div id="first-run-area" style="display:none">
+      <div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:12px;font-size:13px;color:#92400e;margin-bottom:16px">
+        👋 প্রথমবার চালু হচ্ছে! ম্যানেজার হিসেবে আপনার তথ্য দিন।
+      </div>
+      <div class="form-g">
+        <div><label class="login-label">আপনার নাম</label><input class="login-input" type="text" id="setup-name" placeholder="নাম লিখুন"></div>
+        <div style="margin-top:10px"><label class="login-label">মোবাইল নম্বর</label><input class="login-input" type="tel" id="setup-phone" placeholder="01XXXXXXXXX" maxlength="11" oninput="this.value=this.value.replace(/\D/g,'')"></div>
+      </div>
+      <button class="login-btn" onclick="doFirstSetup()" id="setup-btn">ম্যানেজার হিসেবে শুরু করুন →</button>
+      <div class="login-err" id="setup-err"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" style="display:none">
+<div class="topbar">
+  <h1>🍛 Mess Manager</h1>
+  <div class="topbar-right">
+    <span class="month-badge" id="month-label"></span>
+    <div class="user-pill" onclick="doLogout()" id="user-pill">👤 ...</div>
+  </div>
+</div>
+<div class="tabs">
+  <div class="tab active" onclick="gotoTab('sheet')">📊 Meal Sheet</div>
+  <div class="tab" onclick="gotoTab('bazaar')">🛒 Bazaar</div>
+  <div class="tab" onclick="gotoTab('deposit')">💰 Deposit</div>
+  <div class="tab" onclick="gotoTab('summary')">🧾 Summary</div>
+  <div class="tab" onclick="gotoTab('members')">👥 Members</div>
+  <div class="tab" onclick="gotoTab('vote')">🗳️ Vote</div>
+</div>
+
+<!-- MEAL SHEET -->
+<div class="page active" id="page-sheet">
+  <div class="card">
+    <div class="card-title">
+      <span>📊 Monthly Meal Sheet</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <select id="sheet-month-sel" style="width:auto;padding:6px 8px;font-size:12px" onchange="renderSheet()"></select>
+        <button class="btn btn-ghost btn-sm" onclick="exportCSV()">⬇ Export</button>
+      </div>
+    </div>
+    <div id="sheet-readonly-notice" class="readonly-notice" style="display:none">👁️ শুধু দেখতে পাবেন। Edit করতে Manager লাগবে।</div>
+    <div class="legend">
+      <span><div class="dot" style="background:#f0fdf4;border:1px solid #86efac"></div> Meal entered</span>
+      <span><div class="dot" style="background:#fef9c3;border:1px solid #fde047"></div> Total</span>
+      <span><div class="dot" style="background:#fde68a;border:1px solid #fbbf24"></div> Cost</span>
+      <span><div class="dot" style="background:#dcfce7;border:1px solid #86efac"></div> পাবে</span>
+      <span><div class="dot" style="background:#fee2e2;border:1px solid #fca5a5"></div> দেবে</span>
+    </div>
+    <div class="sheet-wrap" id="sheet-container"></div>
+  </div>
+</div>
+
+<!-- BAZAAR -->
+<div class="page" id="page-bazaar">
+  <div id="bazaar-readonly-notice" class="readonly-notice" style="display:none">👁️ শুধু Bazaar history দেখতে পাবেন।</div>
+  <div class="card" id="bazaar-add-card">
+    <div class="card-title"><span>🛒 Add Bazaar Entry</span></div>
+    <div class="form-g g2">
+      <div><label class="lbl">Date</label><input type="date" id="baz-date"></div>
+      <div><label class="lbl">Meal time</label><select id="baz-time"><option value="lunch">দুপুর (Lunch)</option><option value="dinner">রাত (Dinner)</option></select></div>
+    </div>
+    <div class="divider"></div>
+    <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px">🛒 Items</div>
+    <div id="baz-items"></div>
+    <button class="btn btn-ghost btn-sm" onclick="addBazItem()" style="margin-bottom:10px">+ Add item</button>
+    <div class="divider"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:13px;font-weight:700;color:var(--muted)">Total cost</span>
+      <span style="font-size:22px;font-weight:700;color:var(--primary)" id="baz-total">৳ 0</span>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="saveBazaar()">✓ Save Entry</button>
+      <button class="btn btn-ghost" onclick="clearBazForm()">✕ Clear</button>
+    </div>
+  </div>
+  <div class="card"><div class="card-title"><span>📋 Bazaar History</span></div><div id="baz-history"></div></div>
+</div>
+
+<!-- DEPOSIT -->
+<div class="page" id="page-deposit">
+  <div id="deposit-readonly-notice" class="readonly-notice" style="display:none">👁️ শুধু Deposit history দেখতে পাবেন।</div>
+  <div class="card" id="deposit-add-card">
+    <div class="card-title"><span>💰 Add Deposit</span></div>
+    <div class="form-g g3">
+      <div><label class="lbl">Member</label><select id="dep-mem"></select></div>
+      <div><label class="lbl">Amount (Tk)</label><input type="number" id="dep-amt" placeholder="3000" min="0"></div>
+      <div><label class="lbl">Date</label><input type="date" id="dep-date"></div>
+    </div>
+    <div class="form-g"><div><label class="lbl">Note (optional)</label><input type="text" id="dep-note" placeholder="Monthly contribution"></div></div>
+    <div class="btn-row"><button class="btn btn-success" onclick="saveDeposit()">✓ Add Deposit</button></div>
+  </div>
+  <div class="card"><div class="card-title"><span>📋 Deposit History</span></div><div id="dep-history"></div></div>
+</div>
+
+<!-- SUMMARY -->
+<div class="page" id="page-summary">
+  <div class="stats-grid" id="sum-stats"></div>
+  <div class="card"><div class="card-title"><span>🧾 Individual Summary</span></div><div id="sum-individual"></div></div>
+  <div class="card"><div class="card-title"><span>💸 Who pays whom?</span></div><div id="sum-settle"></div></div>
+</div>
+
+<!-- MEMBERS -->
+<div class="page" id="page-members">
+  <div id="members-readonly-notice" class="readonly-notice" style="display:none">👁️ শুধু Members list দেখতে পাবেন।</div>
+  <div class="card" id="members-add-card">
+    <div class="card-title"><span>➕ Add Member</span></div>
+    <div class="form-g g2">
+      <div><label class="lbl">Name</label><input type="text" id="mem-name" placeholder="e.g. Rahim"></div>
+      <div><label class="lbl">Phone (required)</label><input type="tel" id="mem-phone" placeholder="01XXXXXXXXX" maxlength="11" oninput="this.value=this.value.replace(/\D/g,'')"></div>
+    </div>
+    <div class="btn-row"><button class="btn btn-primary" onclick="addMember()">✓ Add Member</button></div>
+  </div>
+  <div class="card"><div class="card-title"><span>👥 Members</span></div><div id="mem-list"></div></div>
+</div>
+
+<!-- VOTE -->
+<div class="page" id="page-vote">
+  <div class="card" style="border:2px solid #fbbf24;background:#fffbeb">
+    <div class="card-title"><span>🗳️ Manager Election</span></div>
+    <div id="vote-status-area"></div>
+  </div>
+  <div class="card" id="vote-cast-card" style="display:none">
+    <div class="card-title"><span>🗳️ আপনার ভোট দিন</span></div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px">পরবর্তী মাসের Manager বেছে নিন:</div>
+    <div id="vote-options"></div>
+    <div class="btn-row" id="vote-btn-row"></div>
+  </div>
+  <div class="card"><div class="card-title"><span>📊 Current Results</span></div><div id="vote-results"></div></div>
+</div>
+</div><!-- end app -->
+
+<!-- Modals -->
+<div class="overlay" id="nm-overlay">
+  <div class="modal">
+    <h3>🔄 Start New Month?</h3>
+    <p>এই মাসের meal, bazaar ও deposit clear হবে। Members থাকবে। Vote winner স্বয়ংক্রিয়ভাবে Manager হবে।</p>
+    <div class="btn-row" style="justify-content:center">
+      <button class="btn btn-ghost" onclick="closeModal('nm-overlay')">Cancel</button>
+      <button class="btn btn-danger-o" onclick="doNewMonth()">Yes, Start New Month</button>
+    </div>
+  </div>
+</div>
+<div class="overlay" id="logout-overlay">
+  <div class="modal" style="text-align:center">
+    <div style="font-size:36px;margin-bottom:10px">👋</div>
+    <h3 id="logout-name" style="margin-bottom:8px"></h3>
+    <p>লগ আউট করবেন?</p>
+    <div class="btn-row" style="justify-content:center">
+      <button class="btn btn-ghost" onclick="closeModal('logout-overlay')">না</button>
+      <button class="btn btn-primary" onclick="confirmLogout()">লগ আউট</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, getDocs, addDoc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
+
+// ── FIREBASE CONFIG ──────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyCvg6Bo6rV3YJv06gtvE5TN7ZX3y9e224E",
+  authDomain: "mess-manager-284eb.firebaseapp.com",
+  projectId: "mess-manager-284eb",
+  storageBucket: "mess-manager-284eb.firebasestorage.app",
+  messagingSenderId: "997052323227",
+  appId: "1:997052323227:web:e8a41f25d0c8600a92bd3e",
+  measurementId: "G-ZRKG7594F7"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// ── REFS ─────────────────────────────────────────────────────
+const metaRef   = doc(db, 'mess', 'meta');       // {managerId, monthKey, voteOpen, votes}
+const membersCol= collection(db, 'members');      // {id, name, phone}
+const mealsRef  = doc(db, 'mess', 'meals');       // {[key]: {[memberId]: val}}
+const bazaarCol = collection(db, 'bazaar');
+const depositsCol=collection(db, 'deposits');
+
+// ── STATE ────────────────────────────────────────────────────
+let META = { managerId: null, monthKey: mkKey(), voteOpen: false, votes: {} };
+let MEMBERS = [];
+let MEALS = {};
+let BAZAAR = [];
+let DEPOSITS = [];
+let currentUser = null;
+let unsubs = [];
+
+function mkKey(){ const n=new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); }
+function mkLabel(k){ if(!k)return ''; const [y,m]=k.split('-'); return new Date(y,m-1,1).toLocaleString('default',{month:'long',year:'numeric'}); }
+function daysInMonth(k){ if(!k)return 30; const [y,m]=k.split('-'); return new Date(y,m,0).getDate(); }
+function todayStr(){ return new Date().toISOString().split('T')[0]; }
+function fmtDate(d){ if(!d)return ''; return new Date(d+'T00:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short'}); }
+function isManager(){ return currentUser && META.managerId && currentUser.id === META.managerId; }
+function showLoading(t){ const el=document.getElementById('loading-overlay'); el.querySelector('div+div').textContent=t||'লোড হচ্ছে...'; el.classList.remove('hidden'); }
+function hideLoading(){ document.getElementById('loading-overlay').classList.add('hidden'); }
+function toast(msg,dur=2800){ const t=document.getElementById('toast'); t.textContent=msg; t.style.display='flex'; clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',dur); }
+function closeModal(id){ document.getElementById(id).style.display='none'; }
+window.closeModal=closeModal;
+
+// ── INIT ─────────────────────────────────────────────────────
+async function init(){
+  showLoading('Firebase এ connect হচ্ছে...');
+  try {
+    const metaSnap = await getDoc(metaRef);
+    if(!metaSnap.exists()){
+      // First time
+      hideLoading();
+      document.getElementById('login-screen').classList.remove('hidden');
+      document.getElementById('login-form-area').style.display='none';
+      document.getElementById('first-run-area').style.display='block';
+      document.getElementById('login-sub-text').textContent='প্রথমবার চালু হচ্ছে!';
+    } else {
+      hideLoading();
+      document.getElementById('login-screen').classList.remove('hidden');
+    }
+  } catch(e){
+    hideLoading();
+    document.getElementById('login-screen').classList.remove('hidden');
+    document.getElementById('login-err').textContent='❌ Firebase connect হয়নি। Firestore rules চেক করুন।';
+  }
+}
+init();
+
+// ── FIRST SETUP ──────────────────────────────────────────────
+window.doFirstSetup = async function(){
+  const name=document.getElementById('setup-name').value.trim();
+  const phone=document.getElementById('setup-phone').value.trim();
+  if(!name){ document.getElementById('setup-err').textContent='নাম দিন'; return; }
+  if(phone.length<11){ document.getElementById('setup-err').textContent='সঠিক ১১ সংখ্যার নম্বর দিন'; return; }
+  const btn=document.getElementById('setup-btn'); btn.disabled=true; btn.textContent='তৈরি হচ্ছে...';
+  try {
+    const memberId = 'M'+Date.now();
+    await setDoc(doc(db,'members',memberId), {id:memberId,name,phone});
+    await setDoc(metaRef, {managerId:memberId, monthKey:mkKey(), voteOpen:false, votes:{}});
+    await setDoc(mealsRef, {});
+    await loginAs(memberId);
+  } catch(e){
+    document.getElementById('setup-err').textContent='❌ Error: '+e.message;
+    btn.disabled=false; btn.textContent='ম্যানেজার হিসেবে শুরু করুন →';
+  }
+};
+
+// ── LOGIN ────────────────────────────────────────────────────
+window.doLogin = async function(){
+  const phone=document.getElementById('login-phone').value.trim();
+  document.getElementById('login-err').textContent='';
+  if(phone.length<11){ document.getElementById('login-err').textContent='সঠিক ১১ সংখ্যার নম্বর দিন'; return; }
+  const btn=document.getElementById('login-btn'); btn.disabled=true; btn.textContent='চেক করছে...';
+  try {
+    const snap=await getDocs(membersCol);
+    let found=null;
+    snap.forEach(d=>{ if(d.data().phone===phone) found=d.data(); });
+    if(!found){ document.getElementById('login-err').textContent='❌ এই নম্বর দিয়ে কোনো Member নেই। Manager এর কাছে যোগ করতে বলুন।'; btn.disabled=false; btn.textContent='লগইন করুন →'; return; }
+    await loginAs(found.id);
+  } catch(e){
+    document.getElementById('login-err').textContent='❌ Error: '+e.message;
+    btn.disabled=false; btn.textContent='লগইন করুন →';
+  }
+};
+
+async function loginAs(memberId){
+  showLoading('লগইন হচ্ছে...');
+  // Load all data
+  const [metaSnap, membersSnap, mealsSnap, bazSnap, depSnap] = await Promise.all([
+    getDoc(metaRef), getDocs(membersCol), getDoc(mealsRef), getDocs(bazaarCol), getDocs(depositsCol)
+  ]);
+  META = metaSnap.data() || { managerId:memberId, monthKey:mkKey(), voteOpen:false, votes:{} };
+  MEMBERS = []; membersSnap.forEach(d=>MEMBERS.push(d.data()));
+  MEALS = mealsSnap.exists() ? mealsSnap.data() : {};
+  BAZAAR = []; bazSnap.forEach(d=>BAZAAR.push(d.data()));
+  DEPOSITS = []; depSnap.forEach(d=>DEPOSITS.push(d.data()));
+
+  const member = MEMBERS.find(m=>m.id===memberId);
+  if(!member){ hideLoading(); document.getElementById('login-err').textContent='❌ Member খুঁজে পাওয়া যায়নি'; return; }
+  currentUser = {id:member.id, name:member.name, phone:member.phone};
+
+  // Subscribe to real-time updates
+  unsubs.forEach(u=>u());
+  unsubs=[];
+  unsubs.push(onSnapshot(metaRef, snap=>{ if(snap.exists()){ META=snap.data(); applyRoleUI(); refreshCurrentTab(); } }));
+  unsubs.push(onSnapshot(membersCol, snap=>{ MEMBERS=[]; snap.forEach(d=>MEMBERS.push(d.data())); refreshCurrentTab(); }));
+  unsubs.push(onSnapshot(mealsRef, snap=>{ MEALS=snap.exists()?snap.data():{}; if(currentTab==='sheet') renderSheet(); }));
+  unsubs.push(onSnapshot(bazaarCol, snap=>{ BAZAAR=[]; snap.forEach(d=>BAZAAR.push(d.data())); if(currentTab==='bazaar') renderBazHistory(); }));
+  unsubs.push(onSnapshot(depositsCol, snap=>{ DEPOSITS=[]; snap.forEach(d=>DEPOSITS.push(d.data())); if(currentTab==='deposit') renderDepHistory(); }));
+
+  hideLoading();
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('app').style.display='block';
+  applyRoleUI();
+  updateMonthLabel();
+  renderSheet();
+  toast(`✓ স্বাগতম, ${member.name}! ${member.id===META.managerId?'👑 Manager':'👤 Member'}`);
+}
+
+window.doLogout = function(){
+  document.getElementById('logout-name').textContent = currentUser?.name||'';
+  document.getElementById('logout-overlay').style.display='flex';
+};
+window.confirmLogout = function(){
+  unsubs.forEach(u=>u()); unsubs=[];
+  currentUser=null;
+  closeModal('logout-overlay');
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-phone').value='';
+  document.getElementById('login-err').textContent='';
+  const btn=document.getElementById('login-btn'); btn.disabled=false; btn.textContent='লগইন করুন →';
+};
+
+// ── ROLE UI ──────────────────────────────────────────────────
+function applyRoleUI(){
+  const mgr=isManager();
+  document.getElementById('user-pill').innerHTML=`${mgr?'👑':'👤'} ${currentUser?.name} <span style="opacity:.6;font-size:10px">· লগ আউট</span>`;
+  document.getElementById('sheet-readonly-notice').style.display=mgr?'none':'flex';
+  document.getElementById('bazaar-readonly-notice').style.display=mgr?'none':'flex';
+  document.getElementById('bazaar-add-card').style.display=mgr?'block':'none';
+  document.getElementById('deposit-readonly-notice').style.display=mgr?'none':'flex';
+  document.getElementById('deposit-add-card').style.display=mgr?'block':'none';
+  document.getElementById('members-readonly-notice').style.display=mgr?'none':'flex';
+  document.getElementById('members-add-card').style.display=mgr?'block':'none';
+}
+
+// ── TABS ─────────────────────────────────────────────────────
+let currentTab='sheet';
+window.gotoTab=function(name){
+  currentTab=name;
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['sheet','bazaar','deposit','summary','members','vote'][i]===name));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  refreshCurrentTab();
+};
+function refreshCurrentTab(){
+  if(currentTab==='sheet') renderSheet();
+  if(currentTab==='bazaar') renderBazPage();
+  if(currentTab==='deposit') renderDepPage();
+  if(currentTab==='summary') renderSummary();
+  if(currentTab==='members') renderMembers();
+  if(currentTab==='vote') renderVotePage();
+}
+function updateMonthLabel(){ document.getElementById('month-label').textContent=mkLabel(META.monthKey)||''; }
+
+// ── MEMBERS ──────────────────────────────────────────────────
+window.addMember=async function(){
+  if(!isManager()){ toast('⚠️ শুধু Manager পারবে'); return; }
+  const name=document.getElementById('mem-name').value.trim();
+  const phone=document.getElementById('mem-phone').value.trim();
+  if(!name){ toast('⚠️ নাম দিন'); return; }
+  if(phone.length<11){ toast('⚠️ সঠিক ১১ সংখ্যার নম্বর দিন'); return; }
+  if(MEMBERS.find(m=>m.name.toLowerCase()===name.toLowerCase())){ toast('⚠️ এই নামে member আছে'); return; }
+  if(MEMBERS.find(m=>m.phone===phone)){ toast('⚠️ এই নম্বরে member আছে'); return; }
+  const id='M'+Date.now();
+  await setDoc(doc(db,'members',id), {id,name,phone});
+  document.getElementById('mem-name').value='';
+  document.getElementById('mem-phone').value='';
+  toast('✓ Member যোগ হয়েছে');
+};
+window.delMember=async function(id){
+  if(!isManager()){ toast('⚠️ শুধু Manager পারবে'); return; }
+  if(id===META.managerId){ toast('⚠️ Manager কে remove করা যাবে না'); return; }
+  await deleteDoc(doc(db,'members',id));
+  toast('Member removed');
+};
+function renderMembers(){
+  const el=document.getElementById('mem-list');
+  if(!MEMBERS.length){el.innerHTML='<div class="empty">No members yet.</div>';return;}
+  const mgr=isManager();
+  let h='<table class="simple"><thead><tr><th>Name</th><th>Phone</th><th>Role</th><th>Total Deposit</th>'+(mgr?'<th></th>':'')+'</tr></thead><tbody>';
+  MEMBERS.forEach(m=>{
+    const dep=DEPOSITS.filter(d=>d.mid===m.id).reduce((a,d)=>a+d.amt,0);
+    const isMgr=m.id===META.managerId;
+    h+=`<tr><td><b>${m.name}</b>${m.id===currentUser?.id?' <span style="font-size:10px;color:var(--muted)">(আপনি)</span>':''}</td>
+      <td style="color:var(--muted)">${m.phone}</td>
+      <td><span class="badge ${isMgr?'badge-manager':'badge-member'}">${isMgr?'👑 Manager':'👤 Member'}</span></td>
+      <td><span class="badge bb">৳${dep}</span></td>
+      ${mgr?`<td>${!isMgr?`<button class="btn btn-ghost btn-sm" style="color:var(--danger);border:none" onclick="delMember('${m.id}')">✕</button>`:'—'}</td>`:''}</tr>`;
+  });
+  h+='</tbody></table>'; el.innerHTML=h;
+  const ds=document.getElementById('dep-mem');
+  if(ds) ds.innerHTML=MEMBERS.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+}
+
+// ── MEAL SHEET ───────────────────────────────────────────────
+function getMeal(memberId,monthKey,day,time){
+  const k=`${monthKey}-${String(day).padStart(2,'0')}-${time}`;
+  return MEALS[k]?.[memberId]||0;
+}
+function buildSheetMonthSel(){
+  const sel=document.getElementById('sheet-month-sel');
+  const allKeys=new Set([META.monthKey]);
+  Object.keys(MEALS).forEach(k=>{ const p=k.split('-'); if(p.length>=2) allKeys.add(p[0]+'-'+p[1]); });
+  const sorted=[...allKeys].sort((a,b)=>b.localeCompare(a));
+  const cur=sel.value||META.monthKey;
+  sel.innerHTML=sorted.map(k=>`<option value="${k}"${k===cur?'selected':''}>${mkLabel(k)}</option>`).join('');
+}
+function renderSheet(){
+  buildSheetMonthSel();
+  const monthKey=document.getElementById('sheet-month-sel').value||META.monthKey;
+  const days=daysInMonth(monthKey);
+  const mgr=isManager();
+  if(!MEMBERS.length){ document.getElementById('sheet-container').innerHTML='<div class="empty">👥 Members tab থেকে member যোগ করুন।</div>'; return; }
+  const bazByDayTime={};
+  BAZAAR.forEach(b=>{ if(!b.date.startsWith(monthKey)) return; const day=parseInt(b.date.split('-')[2]); const k=`${day}-${b.time}`; bazByDayTime[k]=(bazByDayTime[k]||0)+b.total; });
+  const slotMeals={};
+  for(let d=1;d<=days;d++) ['lunch','dinner'].forEach(t=>{ let tot=0; MEMBERS.forEach(m=>{ tot+=getMeal(m.id,monthKey,d,t); }); slotMeals[`${d}-${t}`]=tot; });
+  const md2={};
+  MEMBERS.forEach(m=>{ md2[m.id]={lm:0,dm:0,tot:0,exp:0,dep:DEPOSITS.filter(d=>d.mid===m.id).reduce((a,d)=>a+d.amt,0)}; });
+  for(let d=1;d<=days;d++) ['lunch','dinner'].forEach(t=>{ const cost=bazByDayTime[`${d}-${t}`]||0; const st=slotMeals[`${d}-${t}`]; const rate=st>0?cost/st:0; MEMBERS.forEach(m=>{ const v=getMeal(m.id,monthKey,d,t); if(t==='lunch') md2[m.id].lm+=v; else md2[m.id].dm+=v; md2[m.id].tot+=v; md2[m.id].exp+=v*rate; }); });
+  MEMBERS.forEach(m=>{ md2[m.id].bal=md2[m.id].dep-md2[m.id].exp; });
+  const totalMeals=MEMBERS.reduce((a,m)=>a+md2[m.id].tot,0);
+  const totalCost=BAZAAR.filter(b=>b.date.startsWith(monthKey)).reduce((a,b)=>a+b.total,0);
+  const overallRate=totalMeals>0?totalCost/totalMeals:0;
+
+  let h=`<table class="sheet"><thead><tr><th class="sh-head" rowspan="2" style="text-align:left;padding:6px 12px;position:sticky;left:0;z-index:3;min-width:100px">Member</th>`;
+  for(let d=1;d<=days;d++){ const dd=new Date(monthKey+'-'+String(d).padStart(2,'0')+'T00:00:00'); const dn=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dd.getDay()]; h+=`<th class="sh-date-head" colspan="2" ${dd.getDay()===5?'style="background:#1a4a6e"':''}>${d}<br><span style="font-size:9px;font-weight:400">${dn}</span></th>`; }
+  h+=`<th class="sh-head" rowspan="2" style="min-width:50px">দুপুর</th><th class="sh-head" rowspan="2" style="min-width:50px">রাত</th><th class="sh-head" rowspan="2">Total</th><th class="sh-head" rowspan="2">Expense</th><th class="sh-head" rowspan="2">Deposit</th><th class="sh-head" rowspan="2">Balance</th></tr><tr>`;
+  for(let d=1;d<=days;d++) h+=`<th class="sh-sub">L</th><th class="sh-sub">D</th>`;
+  h+=`</tr></thead><tbody>`;
+  MEMBERS.forEach(m=>{
+    const d=md2[m.id]; const bc=d.bal>=0?'sh-bal-pos':'sh-bal-neg';
+    h+=`<tr ${m.id===currentUser?.id?'style="background:#fafff5"':''}><td class="sh-name">${m.name}${m.id===currentUser?.id?' ✦':''}</td>`;
+    for(let day=1;day<=days;day++) ['lunch','dinner'].forEach(t=>{
+      const v=getMeal(m.id,monthKey,day,t);
+      if(mgr) h+=`<td class="cell"><input type="number" min="0" max="9" value="${v||''}" class="${v?'has-val':''}" onchange="onMealChange(this,'${m.id}',${day},'${t}','${monthKey}')" onfocus="this.select()" style="color:${v?'var(--success)':'var(--text)'}"></td>`;
+      else h+=`<td class="cell"><input type="number" value="${v||''}" readonly class="${v?'has-val':''}" style="color:${v?'var(--success)':'var(--text)'}"></td>`;
+    });
+    h+=`<td class="sh-total">${d.lm}</td><td class="sh-total">${d.dm}</td><td class="sh-total">${d.tot}</td><td class="sh-cost">৳${d.exp.toFixed(0)}</td><td class="sh-cost">৳${d.dep}</td><td class="${bc}">${d.bal>=0?'+':''}৳${d.bal.toFixed(0)}</td></tr>`;
+  });
+  h+=`<tr style="background:#f1f5f9"><td class="sh-name" style="font-weight:700;font-size:12px">TOTAL</td>`;
+  for(let d=1;d<=days;d++) ['lunch','dinner'].forEach(t=>{ const tot=MEMBERS.reduce((a,m)=>a+getMeal(m.id,monthKey,d,t),0); h+=`<td style="padding:5px 2px;text-align:center;font-size:11px;font-weight:700;background:#fef9c3;color:#92400e">${tot||''}</td>`; });
+  const tL=MEMBERS.reduce((a,m)=>a+md2[m.id].lm,0); const tD=MEMBERS.reduce((a,m)=>a+md2[m.id].dm,0); const tDep=MEMBERS.reduce((a,m)=>a+md2[m.id].dep,0);
+  h+=`<td class="sh-total">${tL}</td><td class="sh-total">${tD}</td><td class="sh-total">${totalMeals}</td><td class="sh-cost">৳${totalCost.toFixed(0)}</td><td class="sh-cost">৳${tDep}</td><td class="sh-rate">৳${overallRate.toFixed(1)}/meal</td></tr></tbody></table>`;
+  document.getElementById('sheet-container').innerHTML=h;
+}
+
+window.onMealChange=async function(inp,memberId,day,time,monthKey){
+  if(!isManager()){ inp.value=''; toast('⚠️ শুধু Manager edit করতে পারবে'); return; }
+  const v=Math.max(0,Math.min(9,parseInt(inp.value)||0));
+  inp.value=v||''; inp.className=v?'has-val':''; inp.style.color=v?'var(--success)':'var(--text)';
+  const k=`${monthKey}-${String(day).padStart(2,'0')}-${time}`;
+  if(!MEALS[k]) MEALS[k]={};
+  if(v) MEALS[k][memberId]=v; else delete MEALS[k][memberId];
+  clearTimeout(inp._t);
+  inp._t=setTimeout(async()=>{ await setDoc(mealsRef, MEALS); }, 600);
+};
+
+// ── BAZAAR ───────────────────────────────────────────────────
+window.addBazItem=function(){
+  const c=document.getElementById('baz-items'); const d=document.createElement('div'); d.className='item-row';
+  d.innerHTML=`<input type="text" placeholder="Item name"><input type="number" placeholder="Cost (Tk)" min="0" oninput="calcBazTotal()"><button class="del-icon" onclick="this.parentElement.remove();calcBazTotal()">✕</button>`;
+  c.appendChild(d);
+};
+window.calcBazTotal=function(){ let t=0; document.querySelectorAll('#baz-items .item-row input[type=number]').forEach(i=>t+=parseFloat(i.value)||0); document.getElementById('baz-total').textContent='৳ '+t.toFixed(0); return t; };
+window.clearBazForm=function(){ document.getElementById('baz-items').innerHTML=''; addBazItem(); calcBazTotal(); };
+window.saveBazaar=async function(){
+  if(!isManager()){ toast('⚠️ শুধু Manager পারবে'); return; }
+  const date=document.getElementById('baz-date').value; const time=document.getElementById('baz-time').value;
+  if(!date){ toast('⚠️ Date select করুন'); return; }
+  const items=[]; let total=0;
+  document.querySelectorAll('#baz-items .item-row').forEach(r=>{ const ins=r.querySelectorAll('input'); const name=ins[0].value.trim(); const cost=parseFloat(ins[1].value)||0; if(name||cost){items.push({name:name||'Item',cost});total+=cost;} });
+  if(!items.length||total===0){ toast('⚠️ কমপক্ষে একটি item দিন'); return; }
+  const id='B'+Date.now();
+  await setDoc(doc(db,'bazaar',id), {id,date,time,items,total});
+  clearBazForm(); toast('✓ Bazaar entry saved!');
+};
+window.delBaz=async function(id){
+  if(!isManager()){ toast('⚠️ শুধু Manager পারবে'); return; }
+  await deleteDoc(doc(db,'bazaar',id)); toast('Entry deleted');
+};
+function renderBazPage(){ if(!document.getElementById('baz-date').value) document.getElementById('baz-date').value=todayStr(); if(!document.getElementById('baz-items').children.length) addBazItem(); renderBazHistory(); }
+function renderBazHistory(){
+  const el=document.getElementById('baz-history'); const sorted=[...BAZAAR].sort((a,b)=>b.date.localeCompare(a.date));
+  if(!sorted.length){el.innerHTML='<div class="empty">No bazaar entries yet.</div>';return;}
+  const mgr=isManager();
+  let h='<table class="simple"><thead><tr><th>Date</th><th>Meal</th><th>Items</th><th>Total</th>'+(mgr?'<th></th>':'')+'</tr></thead><tbody>';
+  sorted.forEach(b=>{ const items=b.items.map(i=>`${i.name} ৳${i.cost}`).join(', ');
+    h+=`<tr><td>${fmtDate(b.date)}</td><td><span class="badge ${b.time==='lunch'?'bw':'bb'}">${b.time==='lunch'?'দুপুর':'রাত'}</span></td><td style="color:var(--muted);font-size:12px">${items}</td><td><span class="badge bb">৳${b.total}</span></td>${mgr?`<td><button class="del-icon" onclick="delBaz('${b.id}')">✕</button></td>`:''}</tr>`; });
+  h+='</tbody></table>'; el.innerHTML=h;
+}
+
+// ── DEPOSIT ──────────────────────────────────────────────────
+function renderDepPage(){ const sel=document.getElementById('dep-mem'); sel.innerHTML=MEMBERS.map(m=>`<option value="${m.id}">${m.name}</option>`).join(''); if(!document.getElementById('dep-date').value) document.getElementById('dep-date').value=todayStr(); renderDepHistory(); }
+window.saveDeposit=async function(){
+  if(!isManager()){ toast('⚠️ শুধু Manager পারবে'); return; }
+  const mid=document.getElementById('dep-mem').value; const amt=parseFloat(document.getElementById('dep-amt').value)||0;
+  const date=document.getElementById('dep-date').value; const note=document.getElementById('dep-note').value.trim();
+  if(!mid){ toast('⚠️ Member select করুন'); return; } if(amt<=0){ toast('⚠️ Valid amount দিন'); return; } if(!date){ toast('⚠️ Date select করুন'); return; }
+  const id='D'+Date.now();
+  await setDoc(doc(db,'deposits',id), {id,mid,amt,date,note});
+  document.getElementById('dep-amt').value=''; document.getElementById('dep-note').value='';
+  toast('✓ Deposit saved!');
+};
+window.delDep=async function(id){ if(!isManager()){ toast('⚠️ শুধু Manager পারবে'); return; } await deleteDoc(doc(db,'deposits',id)); toast('Deposit deleted'); };
+function renderDepHistory(){
+  const el=document.getElementById('dep-history'); const sorted=[...DEPOSITS].sort((a,b)=>b.date.localeCompare(a.date));
+  if(!sorted.length){el.innerHTML='<div class="empty">No deposits yet.</div>';return;}
+  const mgr=isManager();
+  let h='<table class="simple"><thead><tr><th>Date</th><th>Member</th><th>Amount</th><th>Note</th>'+(mgr?'<th></th>':'')+'</tr></thead><tbody>';
+  sorted.forEach(d=>{ const mem=MEMBERS.find(m=>m.id===d.mid);
+    h+=`<tr><td>${fmtDate(d.date)}</td><td><b>${mem?mem.name:'?'}</b></td><td><span class="badge bg">৳${d.amt}</span></td><td style="color:var(--muted);font-size:12px">${d.note||'—'}</td>${mgr?`<td><button class="del-icon" onclick="delDep('${d.id}')">✕</button></td>`:''}</tr>`; });
+  h+='</tbody></table>'; el.innerHTML=h;
+}
+
+// ── SUMMARY ──────────────────────────────────────────────────
+function renderSummary(){
+  const mk=META.monthKey; const days=daysInMonth(mk);
+  const bdt={}; BAZAAR.forEach(b=>{ if(!b.date.startsWith(mk)) return; const day=parseInt(b.date.split('-')[2]); const k=`${day}-${b.time}`; bdt[k]=(bdt[k]||0)+b.total; });
+  const sm={}; for(let d=1;d<=days;d++) ['lunch','dinner'].forEach(t=>{ let tot=0; MEMBERS.forEach(m=>{ tot+=getMeal(m.id,mk,d,t); }); sm[`${d}-${t}`]=tot; });
+  const md={}; MEMBERS.forEach(m=>{ md[m.id]={tot:0,exp:0,dep:DEPOSITS.filter(d=>d.mid===m.id).reduce((a,d)=>a+d.amt,0)}; });
+  for(let d=1;d<=days;d++) ['lunch','dinner'].forEach(t=>{ const cost=bdt[`${d}-${t}`]||0; const st=sm[`${d}-${t}`]; const rate=st>0?cost/st:0; MEMBERS.forEach(m=>{ const v=getMeal(m.id,mk,d,t); md[m.id].tot+=v; md[m.id].exp+=v*rate; }); });
+  MEMBERS.forEach(m=>{ md[m.id].bal=md[m.id].dep-md[m.id].exp; });
+  const tMarket=BAZAAR.filter(b=>b.date.startsWith(mk)).reduce((a,b)=>a+b.total,0);
+  const tDep=MEMBERS.reduce((a,m)=>a+md[m.id].dep,0); const tMeals=MEMBERS.reduce((a,m)=>a+md[m.id].tot,0);
+  const mealRate=tMeals>0?tMarket/tMeals:0; const diff=tDep-tMarket;
+  document.getElementById('sum-stats').innerHTML=`
+    <div class="stat"><div class="stat-lbl">Total Market</div><div class="stat-val blue">৳${tMarket.toFixed(0)}</div></div>
+    <div class="stat"><div class="stat-lbl">Total Deposit</div><div class="stat-val">${tDep}</div></div>
+    <div class="stat"><div class="stat-lbl">Difference</div><div class="stat-val ${diff>=0?'green':'red'}">${diff>=0?'+':''}৳${diff.toFixed(0)}</div></div>
+    <div class="stat"><div class="stat-lbl">Total Meals</div><div class="stat-val">${tMeals}</div></div>
+    <div class="stat"><div class="stat-lbl">Meal Rate</div><div class="stat-val warn">৳${mealRate.toFixed(2)}</div></div>`;
+  let h='<table class="simple"><thead><tr><th>Name</th><th>Meals</th><th>Expense</th><th>Deposit</th><th>Balance</th></tr></thead><tbody>';
+  MEMBERS.forEach(m=>{ const d=md[m.id]; const pos=d.bal>=0; h+=`<tr><td><b>${m.name}</b>${m.id===currentUser?.id?' ✦':''}</td><td>${d.tot}</td><td>৳${d.exp.toFixed(0)}</td><td>৳${d.dep}</td><td><span class="badge ${pos?'bg':'br'}">${pos?'▲ পাবে':'▼ দেবে'} ৳${Math.abs(d.bal).toFixed(0)}</span></td></tr>`; });
+  h+='</tbody></table>'; document.getElementById('sum-individual').innerHTML=h;
+  const payers=MEMBERS.filter(m=>md[m.id].bal<0).map(m=>({name:m.name,amt:Math.abs(md[m.id].bal)})).sort((a,b)=>b.amt-a.amt);
+  const rcvrs=MEMBERS.filter(m=>md[m.id].bal>0).map(m=>({name:m.name,amt:md[m.id].bal})).sort((a,b)=>b.amt-a.amt);
+  const el2=document.getElementById('sum-settle');
+  if(!payers.length&&!rcvrs.length){ el2.innerHTML='<div class="empty">🎉 সবকিছু সমান!</div>'; return; }
+  let sh='';
+  if(payers.length){ sh+='<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:700;color:var(--danger);margin-bottom:6px">🔴 যারা দেবে</div>'; payers.forEach(p=>{sh+=`<div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--dbg);border-radius:7px;margin-bottom:5px"><span style="font-weight:600">${p.name}</span><span style="font-weight:700;color:var(--danger)">৳${p.amt.toFixed(0)} দেবে</span></div>`;}); sh+='</div>'; }
+  if(rcvrs.length){ sh+='<div><div style="font-size:12px;font-weight:700;color:var(--success);margin-bottom:6px">🟢 যারা পাবে</div>'; rcvrs.forEach(r=>{sh+=`<div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--sbg);border-radius:7px;margin-bottom:5px"><span style="font-weight:600">${r.name}</span><span style="font-weight:700;color:var(--success)">৳${r.amt.toFixed(0)} পাবে</span></div>`;}); sh+='</div>'; }
+  el2.innerHTML=sh;
+}
+
+// ── VOTE ─────────────────────────────────────────────────────
+let selectedVoteId=null;
+function renderVotePage(){
+  const mgr=isManager(); const sa=document.getElementById('vote-status-area'); const cc=document.getElementById('vote-cast-card');
+  const manager=MEMBERS.find(m=>m.id===META.managerId); const totalVotes=Object.keys(META.votes||{}).length;
+  let statusHtml=`<div class="manager-banner">👑 বর্তমান Manager: ${manager?manager.name:'?'}</div>`;
+  statusHtml+=`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+    <div class="stat" style="flex:1;min-width:120px"><div class="stat-lbl">Voting</div><div class="stat-val" style="font-size:16px">${META.voteOpen?'<span class="green">🟢 খোলা</span>':'<span style="color:var(--muted)">🔴 বন্ধ</span>'}</div></div>
+    <div class="stat" style="flex:1;min-width:120px"><div class="stat-lbl">Votes Cast</div><div class="stat-val">${totalVotes} / ${MEMBERS.length}</div></div>
+  </div>`;
+  if(mgr){ statusHtml+=`<div class="btn-row">${META.voteOpen?`<button class="btn btn-danger" onclick="closeVoting()">🔒 Voting বন্ধ</button>`:`<button class="btn btn-success" onclick="openVoting()">🗳️ Voting শুরু</button>`} <button class="btn btn-ghost" onclick="showNewMonth()">🔄 New Month</button></div>`; }
+  if(META.voteOpen && totalVotes===MEMBERS.length && totalVotes>0) statusHtml+=`<div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:10px 14px;font-size:13px;color:#166534;margin-top:10px">✅ সবাই ভোট দিয়েছে! Manager New Month করুন।</div>`;
+  sa.innerHTML=statusHtml;
+  const myVote=(META.votes||{})[currentUser?.id];
+  if(META.voteOpen && !myVote){
+    cc.style.display='block';
+    let opts=''; MEMBERS.forEach(m=>{ opts+=`<div class="vote-option ${selectedVoteId===m.id?'selected':''}" id="vopt-${m.id}" onclick="selectVote('${m.id}')">${m.name}${m.id===META.managerId?' 👑':''} ${m.id===currentUser?.id?'<span style="font-size:11px;color:var(--muted)">(আপনি)</span>':''}</div>`; });
+    document.getElementById('vote-options').innerHTML=opts;
+    document.getElementById('vote-btn-row').innerHTML=`<button class="btn btn-primary" onclick="castVote()">✓ ভোট দিন</button>`;
+  } else if(myVote){
+    cc.style.display='block'; const voted=MEMBERS.find(m=>m.id===myVote);
+    document.getElementById('vote-options').innerHTML=`<div style="background:#eff6ff;border:2px solid var(--primary);border-radius:8px;padding:14px;text-align:center;font-size:14px;font-weight:700;color:var(--primary)">✅ আপনি ভোট দিয়েছেন: ${voted?voted.name:'?'}</div>`;
+    document.getElementById('vote-btn-row').innerHTML='';
+  } else { cc.style.display='none'; }
+  renderVoteResults();
+}
+window.selectVote=function(id){ selectedVoteId=id; document.querySelectorAll('.vote-option').forEach(el=>el.classList.remove('selected')); const el=document.getElementById('vopt-'+id); if(el) el.classList.add('selected'); };
+window.castVote=async function(){
+  if(!selectedVoteId){ toast('⚠️ কাউকে select করুন'); return; }
+  const newVotes={...(META.votes||{}), [currentUser.id]:selectedVoteId};
+  await updateDoc(metaRef, {votes:newVotes}); toast('✓ ভোট দেওয়া হয়েছে!');
+};
+window.openVoting=async function(){ if(!isManager()){toast('⚠️ শুধু Manager পারবে');return;} await updateDoc(metaRef,{voteOpen:true,votes:{}}); toast('🗳️ Voting শুরু!'); };
+window.closeVoting=async function(){ if(!isManager()){toast('⚠️ শুধু Manager পারবে');return;} await updateDoc(metaRef,{voteOpen:false}); toast('🔒 Voting বন্ধ'); };
+function renderVoteResults(){
+  const el=document.getElementById('vote-results'); const votes=META.votes||{};
+  if(!Object.keys(votes).length){ el.innerHTML='<div class="empty">এখনো কোনো ভোট পড়েনি।</div>'; return; }
+  const counts={}; MEMBERS.forEach(m=>counts[m.id]=0); Object.values(votes).forEach(cid=>{ if(counts[cid]!==undefined) counts[cid]++; });
+  const total=Object.values(counts).reduce((a,b)=>a+b,0);
+  const sorted=MEMBERS.slice().sort((a,b)=>counts[b.id]-counts[a.id]);
+  let h=''; sorted.forEach((m,i)=>{ const pct=total>0?Math.round(counts[m.id]/total*100):0;
+    h+=`<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-weight:700">${m.name}${m.id===META.managerId?' 👑':''} ${i===0&&counts[m.id]>0?'🥇':''}</span><span style="font-size:12px;color:var(--muted)">${counts[m.id]} ভোট (${pct}%)</span></div><div class="vote-bar-wrap"><div class="vote-bar" style="width:${pct}%"></div></div></div>`; });
+  el.innerHTML=h;
+}
+
+// ── NEW MONTH ────────────────────────────────────────────────
+window.showNewMonth=function(){ if(!isManager()){toast('⚠️ শুধু Manager পারবে');return;} document.getElementById('nm-overlay').style.display='flex'; };
+window.doNewMonth=async function(){
+  showLoading('নতুন মাস শুরু হচ্ছে...');
+  let newManagerId=META.managerId;
+  const votes=META.votes||{};
+  if(Object.keys(votes).length>0){
+    const counts={}; MEMBERS.forEach(m=>counts[m.id]=0); Object.values(votes).forEach(cid=>{ if(counts[cid]!==undefined) counts[cid]++; });
+    const winner=MEMBERS.reduce((best,m)=>counts[m.id]>counts[best.id]?m:best,MEMBERS[0]);
+    if(winner) newManagerId=winner.id;
+  }
+  // Delete all bazaar, deposits, reset meals
+  const bazSnap=await getDocs(bazaarCol); const delB=bazSnap.docs.map(d=>deleteDoc(d.ref));
+  const depSnap=await getDocs(depositsCol); const delD=depSnap.docs.map(d=>deleteDoc(d.ref));
+  await Promise.all([...delB,...delD]);
+  await setDoc(mealsRef, {});
+  await updateDoc(metaRef, {managerId:newManagerId, monthKey:mkKey(), voteOpen:false, votes:{}});
+  closeModal('nm-overlay'); hideLoading();
+  const newMgr=MEMBERS.find(m=>m.id===newManagerId);
+  toast(`✓ নতুন মাস শুরু! 👑 নতুন Manager: ${newMgr?newMgr.name:'?'}`);
+};
+
+// ── EXPORT ───────────────────────────────────────────────────
+window.exportCSV=function(){
+  const mk=document.getElementById('sheet-month-sel').value||META.monthKey; const days=daysInMonth(mk);
+  let csv=`Mess Manager - ${mkLabel(mk)}\n\nMember,`; for(let d=1;d<=days;d++) csv+=`${d}-L,${d}-D,`; csv+='Meals,Expense,Deposit,Balance\n';
+  const bdt={}; BAZAAR.forEach(b=>{ if(!b.date.startsWith(mk)) return; const day=parseInt(b.date.split('-')[2]); const k=`${day}-${b.time}`; bdt[k]=(bdt[k]||0)+b.total; });
+  const sm={}; for(let d=1;d<=days;d++) ['lunch','dinner'].forEach(t=>{ let tot=0; MEMBERS.forEach(m=>{ tot+=getMeal(m.id,mk,d,t); }); sm[`${d}-${t}`]=tot; });
+  MEMBERS.forEach(m=>{ let row=m.name+','; let meals=0,exp=0;
+    for(let d=1;d<=days;d++) ['lunch','dinner'].forEach(t=>{ const v=getMeal(m.id,mk,d,t); const cost=bdt[`${d}-${t}`]||0; const st=sm[`${d}-${t}`]; const rate=st>0?cost/st:0; row+=v+','; meals+=v; exp+=v*rate; });
+    const dep=DEPOSITS.filter(d=>d.mid===m.id).reduce((a,d)=>a+d.amt,0); csv+=row+meals+','+exp.toFixed(0)+','+dep+','+(dep-exp).toFixed(0)+'\n'; });
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`mess-${mk}.csv`; a.click(); toast('✓ CSV exported!');
+};
+</script>
+</body>
+</html>
