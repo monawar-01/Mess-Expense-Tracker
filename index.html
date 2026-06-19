@@ -2215,7 +2215,7 @@
           const savedSession = localStorage.getItem("messManagerSession");
           if (savedSession) {
             const session = JSON.parse(savedSession);
-            if (session && session.memberId && session.expiresAt && Date.now() < session.expiresAt) {
+            if (session && typeof session.memberId === "string" && session.memberId) {
               // Validate member still exists in Firestore
               try {
                 const snap = await getDoc(metaRef);
@@ -2230,14 +2230,15 @@
                   }
                 }
               } catch (_e) {
-                // Session validation failed, fall through to login
+                // Session validation failed (e.g. offline/network issue) — fall through to login
               }
             }
-            // Session invalid or expired — clear it
+            // Session malformed or member no longer exists — clear it
             localStorage.removeItem("messManagerSession");
           }
         } catch (_e) {
-          localStorage.removeItem("messManagerSession");
+          // Corrupted/invalid JSON in storage — clear it and continue to login
+          try { localStorage.removeItem("messManagerSession"); } catch (_e2) {}
         }
         // ── NORMAL FLOW: show login screen ───────────────────────────
         try {
@@ -2467,12 +2468,9 @@
           return;
         }
         currentUser = { id: member.id, name: member.name, phone: member.phone };
-        // ── PERSIST SESSION: 30-day expiry ────────────────────────────
+        // ── PERSIST SESSION: no expiry — stays until explicit Logout ─
         try {
-          const sessionData = {
-            memberId: member.id,
-            expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
-          };
+          const sessionData = { memberId: member.id };
           localStorage.setItem("messManagerSession", JSON.stringify(sessionData));
         } catch (_e) { /* storage not available */ }
         unsubs.forEach((u) => u());
@@ -3491,7 +3489,7 @@
 
       // ── BILLS ────────────────────────────────────────────────────
       const BILL_LABELS = {
-        rent: "🏠 Rent",
+        rent: "🏠 Bashabhara",
         water: "💧 Water Bill",
         electricity: "⚡ Electricity Bill",
         wifi: "📶 WiFi Bill",
