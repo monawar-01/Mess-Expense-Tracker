@@ -2145,6 +2145,7 @@
         MEALS = {},
         BAZAAR = [],
         DEPOSITS = [],
+        SUMMARY_DEPOSITS = [], // unfiltered deposits for ALL users, used only by the shared Summary page
         BILLS = [],
         INFO = {},
         MEALOFF = [],
@@ -2445,7 +2446,9 @@
         bSnap.forEach((d) => BAZAAR.push(d.data()));
         DEPOSITS = [];
         dSnap.forEach((d) => DEPOSITS.push(d.data()));
-        // Security: members only hold their own deposit data in memory
+        // Summary dashboard is shared: every user keeps the full, unfiltered list here
+        SUMMARY_DEPOSITS = DEPOSITS.slice();
+        // Security: Deposit module only holds the member's own deposit data in memory
         if (memberId !== (mSnap.data()?.managerId)) {
           DEPOSITS = DEPOSITS.filter((d) => d.mid === memberId);
         }
@@ -2509,7 +2512,9 @@
           onSnapshot(depositsCol, (s) => {
             const allDeposits = [];
             s.forEach((d) => allDeposits.push(d.data()));
-            // Security: members only ever see their own deposits in state
+            // Summary dashboard is shared: every user keeps the full, unfiltered list here
+            SUMMARY_DEPOSITS = allDeposits;
+            // Security: Deposit module only ever shows members their own deposits in state
             if (isManager()) {
               DEPOSITS = allDeposits;
             } else {
@@ -3710,7 +3715,9 @@
           md[m.id] = {
             meals: 0,
             exp: 0,
-            dep: DEPOSITS.filter((d) => d.mid === m.id).reduce(
+            // Summary is a shared dashboard: always read from the unfiltered SUMMARY_DEPOSITS,
+            // never from DEPOSITS (which is intentionally restricted for the Deposit module).
+            dep: SUMMARY_DEPOSITS.filter((d) => d.mid === m.id).reduce(
               (a, d) => a + d.amt,
               0,
             ),
