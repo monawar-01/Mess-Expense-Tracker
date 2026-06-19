@@ -1634,7 +1634,7 @@
               class="readonly-notice"
               style="display: none"
             >
-              👁️ View only access to Deposit history.
+              👁️ Viewing your own deposit history. Only the Manager can add, edit, or delete deposits.
             </div>
             <div class="card" id="deposit-add-card">
               <div class="card-title"><span>💰 Add Deposit</span></div>
@@ -1674,7 +1674,7 @@
               </div>
             </div>
             <div class="card">
-              <div class="card-title"><span>📋 Deposit History</span></div>
+              <div class="card-title" id="dep-history-title"><span>📋 Deposit History</span></div>
               <div id="dep-history"></div>
             </div>
           </div>
@@ -1772,10 +1772,6 @@
             <div class="card">
               <div class="card-title"><span>🧾 Individual Summary</span></div>
               <div id="sum-individual"></div>
-            </div>
-            <div class="card">
-              <div class="card-title"><span>💸 Who pays whom?</span></div>
-              <div id="sum-settle"></div>
             </div>
           </div>
 
@@ -2449,6 +2445,10 @@
         bSnap.forEach((d) => BAZAAR.push(d.data()));
         DEPOSITS = [];
         dSnap.forEach((d) => DEPOSITS.push(d.data()));
+        // Security: members only hold their own deposit data in memory
+        if (memberId !== (mSnap.data()?.managerId)) {
+          DEPOSITS = DEPOSITS.filter((d) => d.mid === memberId);
+        }
         BILLS = [];
         blSnap.forEach((d) => BILLS.push(d.data()));
         INFO = iSnap.exists() ? iSnap.data() : {};
@@ -2507,8 +2507,14 @@
         );
         unsubs.push(
           onSnapshot(depositsCol, (s) => {
-            DEPOSITS = [];
-            s.forEach((d) => DEPOSITS.push(d.data()));
+            const allDeposits = [];
+            s.forEach((d) => allDeposits.push(d.data()));
+            // Security: members only ever see their own deposits in state
+            if (isManager()) {
+              DEPOSITS = allDeposits;
+            } else {
+              DEPOSITS = allDeposits.filter((d) => d.mid === memberId);
+            }
             if (currentTab === "deposit") renderDepHistory();
             if (currentTab === "summary") renderSummary();
             checkDueDeposits();
@@ -2597,12 +2603,23 @@
           const n = document.getElementById(t + "-readonly-notice");
           if (n) n.style.display = mgr ? "none" : "flex";
         });
-        ["bazaar-add-card", "deposit-add-card", "members-add-card"].forEach(
+        ["bazaar-add-card", "members-add-card"].forEach(
           (id) => {
             const el = document.getElementById(id);
             if (el) el.style.display = mgr ? "block" : "none";
           },
         );
+        // Deposit add card: only manager can see it
+        const depAddCard = document.getElementById("deposit-add-card");
+        if (depAddCard) depAddCard.style.display = mgr ? "block" : "none";
+        // Deposit member selector: only populate for manager
+        if (mgr) {
+          const ds = document.getElementById("dep-mem");
+          if (ds)
+            ds.innerHTML = MEMBERS.map(
+              (m) => `<option value="${m.id}">${m.name}</option>`,
+            ).join("");
+        }
         const billsNotice = document.getElementById("bills-readonly-notice");
         if (billsNotice) billsNotice.style.display = mgr ? "none" : "flex";
         ["bills-rent-card", "bills-split-card"].forEach((id) => {
@@ -2730,24 +2747,31 @@
         }
         const mgr = isManager();
         let h =
-          '<table class="simple"><thead><tr><th>Name</th><th>Phone</th><th>Role</th><th>Total Deposit</th>' +
+          '<table class="simple"><thead><tr><th>Name</th><th>Phone</th><th>Role</th>' +
+          (mgr ? "<th>Total Deposit</th>" : "") +
           (mgr ? "<th></th>" : "") +
           "</tr></thead><tbody>";
         MEMBERS.forEach((m) => {
-          const dep = DEPOSITS.filter((d) => d.mid === m.id).reduce(
-            (a, d) => a + d.amt,
-            0,
-          );
           const isMgr = m.id === META.managerId;
-          h += `<tr><td><b>${m.name}</b>${m.id === currentUser?.id ? ' <span style="font-size:10px;color:var(--muted)">(You)</span>' : ""}</td><td style="color:var(--muted)">${m.phone}</td><td><span class="badge ${isMgr ? "badge-manager" : "badge-member"}">${isMgr ? "👑 Manager" : "👤 Member"}</span></td><td><span class="badge bb">৳${dep}</span></td>${mgr ? `<td>${!isMgr ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger);border:none" onclick="delMember('${m.id}')">✕</button>` : "—"}</td>` : ""}</tr>`;
+          const depCell = mgr
+            ? (() => {
+                const dep = DEPOSITS.filter((d) => d.mid === m.id).reduce(
+                  (a, d) => a + d.amt, 0,
+                );
+                return `<td><span class="badge bb">৳${dep}</span></td>`;
+              })()
+            : "";
+          h += `<tr><td><b>${m.name}</b>${m.id === currentUser?.id ? ' <span style="font-size:10px;color:var(--muted)">(You)</span>' : ""}</td><td style="color:var(--muted)">${m.phone}</td><td><span class="badge ${isMgr ? "badge-manager" : "badge-member"}">${isMgr ? "👑 Manager" : "👤 Member"}</span></td>${depCell}${mgr ? `<td>${!isMgr ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger);border:none" onclick="delMember('${m.id}')">✕</button>` : "—"}</td>` : ""}</tr>`;
         });
         h += "</tbody></table>";
         el.innerHTML = h;
-        const ds = document.getElementById("dep-mem");
-        if (ds)
-          ds.innerHTML = MEMBERS.map(
-            (m) => `<option value="${m.id}">${m.name}</option>`,
-          ).join("");
+        if (mgr) {
+          const ds = document.getElementById("dep-mem");
+          if (ds)
+            ds.innerHTML = MEMBERS.map(
+              (m) => `<option value="${m.id}">${m.name}</option>`,
+            ).join("");
+        }
       }
 
       // ── INFO (dynamic contacts: owner, maid, caretaker, etc.) ──────
@@ -3312,17 +3336,20 @@
 
       // ── DEPOSIT ──────────────────────────────────────────────────
       function renderDepPage() {
+        const mgr = isManager();
         const sel = document.getElementById("dep-mem");
-        sel.innerHTML = MEMBERS.map(
-          (m) => `<option value="${m.id}">${m.name}</option>`,
-        ).join("");
+        if (mgr) {
+          sel.innerHTML = MEMBERS.map(
+            (m) => `<option value="${m.id}">${m.name}</option>`,
+          ).join("");
+        }
         if (!document.getElementById("dep-date").value)
           document.getElementById("dep-date").value = todayStr();
         renderDepHistory();
       }
       window.saveDeposit = async function () {
         if (!isManager()) {
-          toast("⚠️ Only Manager can do this");
+          toast("⚠️ Only Manager can add deposits");
           return;
         }
         const mid = document.getElementById("dep-mem").value;
@@ -3342,39 +3369,119 @@
           return;
         }
         const id = "D" + Date.now();
-        await setDoc(doc(db, "deposits", id), { id, mid, amt, date, note });
+        await setDoc(doc(db, "deposits", id), {
+          id, mid, amt, date,
+          deposit_date: date,
+          note,
+          created_at: Date.now(),
+          updated_at: Date.now(),
+        });
         document.getElementById("dep-amt").value = "";
         document.getElementById("dep-note").value = "";
         toast("✓ Deposit saved!");
       };
-      window.delDep = async function (id) {
+      window.editDep = async function (id) {
         if (!isManager()) {
-          toast("⚠️ Only Manager can do this");
+          toast("⚠️ Only Manager can edit deposits");
           return;
         }
+        const dep = DEPOSITS.find((d) => d.id === id);
+        if (!dep) return;
+        const newAmt = prompt("Edit amount (Tk):", dep.amt);
+        if (newAmt === null) return;
+        const amt = parseFloat(newAmt);
+        if (isNaN(amt) || amt <= 0) {
+          toast("⚠️ Invalid amount");
+          return;
+        }
+        const newDate = prompt("Edit date (YYYY-MM-DD):", dep.date || dep.deposit_date || "");
+        if (newDate === null) return;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
+          toast("⚠️ Invalid date format. Use YYYY-MM-DD");
+          return;
+        }
+        await updateDoc(doc(db, "deposits", id), {
+          amt, date: newDate, deposit_date: newDate, updated_at: Date.now(),
+        });
+        toast("✓ Deposit updated!");
+      };
+      window.delDep = async function (id) {
+        if (!isManager()) {
+          toast("⚠️ Only Manager can delete deposits");
+          return;
+        }
+        if (!confirm("Delete this deposit?")) return;
         await deleteDoc(doc(db, "deposits", id));
         toast("Deposit deleted");
       };
       function renderDepHistory() {
         const el = document.getElementById("dep-history");
-        const sorted = [...DEPOSITS].sort((a, b) =>
-          b.date.localeCompare(a.date),
-        );
-        if (!sorted.length) {
-          el.innerHTML = '<div class="empty">No deposits yet.</div>';
-          return;
-        }
+        const titleEl = document.getElementById("dep-history-title");
         const mgr = isManager();
-        let h =
-          '<table class="simple"><thead><tr><th>Date</th><th>Member</th><th>Amount</th><th>Note</th>' +
-          (mgr ? "<th></th>" : "") +
-          "</tr></thead><tbody>";
-        sorted.forEach((d) => {
-          const mem = MEMBERS.find((m) => m.id === d.mid);
-          h += `<tr><td>${fmtDate(d.date)}</td><td><b>${mem ? mem.name : "?"}</b></td><td><span class="badge bg">৳${d.amt}</span></td><td style="color:var(--muted);font-size:12px">${d.note || "—"}</td>${mgr ? `<td><button class="del-icon" onclick="delDep('${d.id}')">✕</button></td>` : ""}</tr>`;
-        });
-        h += "</tbody></table>";
-        el.innerHTML = h;
+
+        if (mgr) {
+          // Manager: grouped view — one section per member
+          if (titleEl) titleEl.innerHTML = "<span>📋 All Members' Deposits</span>";
+          if (!DEPOSITS.length) {
+            el.innerHTML = '<div class="empty">No deposits yet.</div>';
+            return;
+          }
+          let html = "";
+          MEMBERS.forEach((m) => {
+            const memberDeps = DEPOSITS.filter((d) => d.mid === m.id)
+              .sort((a, b) => (b.date || b.deposit_date || "").localeCompare(a.date || a.deposit_date || ""));
+            const total = memberDeps.reduce((a, d) => a + d.amt, 0);
+            html += `<div style="margin-bottom:18px">
+              <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px;padding:6px 10px;background:var(--bg);border-radius:6px;display:flex;justify-content:space-between;align-items:center">
+                <span>👤 ${m.name}${m.id === currentUser?.id ? ' <span style="font-size:10px;color:var(--muted)">(You)</span>' : ""}</span>
+                <span style="color:var(--primary);font-weight:700">Total: ৳${total}</span>
+              </div>`;
+            if (!memberDeps.length) {
+              html += '<div class="empty" style="font-size:12px;padding:8px 10px">No deposits</div>';
+            } else {
+              html += '<table class="simple"><thead><tr><th>Date</th><th>Amount</th><th>Note</th><th>Action</th></tr></thead><tbody>';
+              memberDeps.forEach((d) => {
+                const depDate = d.date || d.deposit_date || "";
+                html += `<tr>
+                  <td>${fmtDate(depDate)}</td>
+                  <td><span class="badge bg">৳${d.amt}</span></td>
+                  <td style="color:var(--muted);font-size:12px">${d.note || "—"}</td>
+                  <td style="white-space:nowrap">
+                    <button class="btn btn-ghost btn-sm" style="color:var(--primary);border:none;margin-right:4px" onclick="editDep('${d.id}')" title="Edit">✏️ Edit</button>
+                    <button class="btn btn-ghost btn-sm" style="color:var(--danger);border:none" onclick="delDep('${d.id}')" title="Delete">🗑 Delete</button>
+                  </td>
+                </tr>`;
+              });
+              html += `</tbody></table>`;
+            }
+            html += `</div>`;
+          });
+          el.innerHTML = html;
+        } else {
+          // Member: only see their own deposits in Date | Amount format
+          if (titleEl) titleEl.innerHTML = "<span>📋 My Deposit History</span>";
+          const myDeps = DEPOSITS.filter((d) => d.mid === currentUser?.id)
+            .sort((a, b) => (b.date || b.deposit_date || "").localeCompare(a.date || a.deposit_date || ""));
+          if (!myDeps.length) {
+            el.innerHTML = '<div class="empty">You have no deposits yet.</div>';
+            return;
+          }
+          const total = myDeps.reduce((a, d) => a + d.amt, 0);
+          let h = '<table class="simple"><thead><tr><th>Date</th><th>Amount</th></tr></thead><tbody>';
+          myDeps.forEach((d) => {
+            const depDate = d.date || d.deposit_date || "";
+            h += `<tr>
+              <td>${fmtDate(depDate)}</td>
+              <td><span class="badge bg">৳${d.amt}</span></td>
+            </tr>`;
+          });
+          h += `</tbody></table>
+          <div style="margin-top:12px;padding:10px 14px;background:var(--sbg);border:1px solid #86efac;border-radius:8px;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-weight:700;font-size:13px">Total Deposit</span>
+            <span style="font-weight:800;font-size:16px;color:var(--success)">৳${total} Tk</span>
+          </div>`;
+          el.innerHTML = h;
+        }
       }
 
       // ── BILLS ────────────────────────────────────────────────────
@@ -3486,91 +3593,112 @@
         await deleteDoc(doc(db, "bills", id));
         toast("Bill deleted");
       };
+      window.editBill = async function (billId, memberId) {
+        if (!isManager()) {
+          toast("⚠️ Only Manager can edit bills");
+          return;
+        }
+        const bill = BILLS.find((b) => b.id === billId);
+        if (!bill) return;
+        const curAmt = bill.shares && bill.shares[memberId] !== undefined ? bill.shares[memberId] : bill.total;
+        const newAmt = prompt("Edit amount (Tk) for this bill entry:", curAmt);
+        if (newAmt === null) return;
+        const amt = parseFloat(newAmt);
+        if (isNaN(amt) || amt <= 0) { toast("⚠️ Invalid amount"); return; }
+        const newNote = prompt("Edit note (optional):", bill.note || "");
+        if (newNote === null) return;
+        const updatedShares = { ...(bill.shares || {}), [memberId]: amt };
+        const updatedTotal = Object.values(updatedShares).reduce((a, v) => a + v, 0);
+        const updateData = { shares: updatedShares, total: updatedTotal, updated_at: Date.now() };
+        if (newNote.trim()) updateData.note = newNote.trim();
+        await updateDoc(doc(db, "bills", billId), updateData);
+        toast("✓ Bill updated!");
+      };
       function renderBillsPage() {
         const mgr = isManager();
         fillBillRentMemberSelect();
         const titleEl = document.getElementById("bills-history-title");
         if (titleEl)
-          titleEl.textContent = mgr ? "📋 Bill History (All Members)" : "📋 My Bill History";
+          titleEl.innerHTML = mgr ? "<span>&#x1F4CB; Bill History (All Members)</span>" : "<span>&#x1F4CB; My Bill History</span>";
         const hist = document.getElementById("bills-history");
         if (!hist) return;
 
-        // Sort bills newest-first
+        // Sort newest-first
         const sorted = [...BILLS].sort((a, b) => b.date.localeCompare(a.date));
 
-        // For members: filter to only their own bills
-        const visibleBills = mgr
-          ? sorted
-          : sorted.filter((b) => b.shares && b.shares[currentUser?.id] !== undefined);
-
-        if (!visibleBills.length) {
-          hist.innerHTML = mgr
-            ? '<div class="empty">No bills added yet.</div>'
-            : '<div class="empty">No bills for you yet.</div>';
-          return;
-        }
-
-        // Build flat rows — one row per (bill × member-share)
-        // Manager sees all members; member sees only themselves
-        const rows = [];
-        visibleBills.forEach((b) => {
-          const sharesEntries = Object.entries(b.shares || {});
-          const relevantShares = mgr
-            ? sharesEntries
-            : sharesEntries.filter(([mid]) => mid === currentUser?.id);
-          relevantShares.forEach(([mid, amt]) => {
-            const mem = MEMBERS.find((m) => m.id === mid);
-            rows.push({ bill: b, mid, amt, mem });
-          });
-        });
-
-        // Summary totals (above the table)
-        let summaryHtml = "";
-        if (mgr) {
-          // Per-member totals for manager
-          const memberTotals = {};
-          MEMBERS.forEach((m) => (memberTotals[m.id] = 0));
-          BILLS.forEach((b) => {
-            Object.entries(b.shares || {}).forEach(([mid, amt]) => {
-              if (memberTotals[mid] !== undefined) memberTotals[mid] += amt;
+        // Shared helper: build one member group block
+        function buildMemberGroup(member, billRows) {
+          const isSelf = member.id === currentUser?.id;
+          const total = billRows.reduce((a, r) => a + r.amt, 0);
+          const youTag = isSelf ? ' <span style="font-size:10px;color:var(--muted)">(You)</span>' : "";
+          let block = '<div style="margin-bottom:18px">';
+          block += '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px;padding:6px 10px;background:var(--bg);border-radius:6px;display:flex;justify-content:space-between;align-items:center">';
+          block += '<span>&#x1F464; ' + escapeHtml(member.name) + youTag + '</span>';
+          block += '<span style="color:var(--primary);font-weight:700">Total: &#x9F3;' + rAfZ(total, 0) + '</span>';
+          block += '</div>';
+          if (!billRows.length) {
+            block += '<div class="empty" style="font-size:12px;padding:8px 10px">No bills</div>';
+          } else {
+            block += '<table class="simple"><thead><tr><th>Date</th><th>Bill Type</th><th>Amount</th><th>Note</th>';
+            if (mgr) block += '<th>Action</th>';
+            block += '</tr></thead><tbody>';
+            billRows.forEach(function(r) {
+              const bill = r.bill;
+              const amt = r.amt;
+              const note = bill.note || '&#8212;';
+              block += '<tr>';
+              block += '<td>' + fmtDate(bill.date) + '</td>';
+              block += '<td>' + billLabel(bill) + '</td>';
+              block += '<td><span class="badge bb">&#x9F3;' + rAfZ(amt, 0) + '</span></td>';
+              block += '<td style="color:var(--muted);font-size:12px">' + note + '</td>';
+              if (mgr) {
+                block += '<td style="white-space:nowrap">';
+                block += '<button class="btn btn-ghost btn-sm" style="color:var(--primary);border:none;margin-right:4px" onclick="editBill(\'' + bill.id + '\',\'' + member.id + '\')" title="Edit">&#x270F;&#xFE0F; Edit</button>';
+                block += '<button class="btn btn-ghost btn-sm" style="color:var(--danger);border:none" onclick="delBill(\'' + bill.id + '\')" title="Delete">&#x1F5D1; Delete</button>';
+                block += '</td>';
+              }
+              block += '</tr>';
             });
-          });
-          summaryHtml = `<div style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:8px">`;
-          MEMBERS.forEach((m) => {
-            summaryHtml += `<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px"><b>${escapeHtml(m.name)}</b><br><span style="color:var(--primary);font-weight:700">৳${rAfZ(memberTotals[m.id] || 0, 0)}</span></div>`;
-          });
-          summaryHtml += `</div>`;
-        } else {
-          // Member sees their own total
-          const myTotal = visibleBills.reduce(
-            (a, b) => a + (b.shares[currentUser?.id] || 0),
-            0,
-          );
-          summaryHtml = `<div style="margin-bottom:10px;font-size:13px;color:var(--muted)">Total bills so far: <b style="color:var(--text)">৳${rAfZ(myTotal, 0)}</b></div>`;
+            block += '</tbody></table>';
+          }
+          block += '</div>';
+          return block;
         }
 
-        // Table header — Action column only shown to Manager
-        let h = summaryHtml;
-        h += `<table class="simple"><thead><tr>
-          <th>Date</th>
-          <th>Bill Type</th>
-          ${mgr ? "<th>Member</th>" : ""}
-          <th>${mgr ? "Amount" : "Your Share"}</th>
-          ${mgr ? "<th>Action</th>" : ""}
-        </tr></thead><tbody>`;
+        if (mgr) {
+          // Manager: one group per member, in member-list order
+          if (!sorted.length) {
+            hist.innerHTML = '<div class="empty">No bills added yet.</div>';
+            return;
+          }
+          let html = "";
+          MEMBERS.forEach(function(m) {
+            const rows = sorted
+              .filter(function(b) { return b.shares && b.shares[m.id] !== undefined; })
+              .map(function(b) { return { bill: b, amt: b.shares[m.id] }; });
+            html += buildMemberGroup(m, rows);
+          });
+          hist.innerHTML = html;
 
-        rows.forEach(({ bill, mid, amt, mem }) => {
-          h += `<tr>
-            <td>${fmtDate(bill.date)}</td>
-            <td>${billLabel(bill)}</td>
-            ${mgr ? `<td><b>${mem ? escapeHtml(mem.name) : "?"}</b>${mid === currentUser?.id ? ' <span style="font-size:10px;color:var(--muted)">(You)</span>' : ""}</td>` : ""}
-            <td><span class="badge ${mgr ? "bb" : "br"}">৳${rAfZ(amt, 0)}</span></td>
-            ${mgr ? `<td><button class="btn btn-ghost btn-sm" style="color:var(--danger);border:none" onclick="delBill('${bill.id}')" title="Delete bill">🗑 Delete</button></td>` : ""}
-          </tr>`;
-        });
-
-        h += "</tbody></table>";
-        hist.innerHTML = h;
+        } else {
+          // Member: only their own group
+          const me = MEMBERS.find(function(m) { return m.id === currentUser?.id; });
+          if (!me) return;
+          const myRows = sorted
+            .filter(function(b) { return b.shares && b.shares[me.id] !== undefined; })
+            .map(function(b) { return { bill: b, amt: b.shares[me.id] }; });
+          if (!myRows.length) {
+            hist.innerHTML = '<div class="empty">No bills for you yet.</div>';
+            return;
+          }
+          const myTotal = myRows.reduce(function(a, r) { return a + r.amt; }, 0);
+          let html = buildMemberGroup(me, myRows);
+          html += '<div style="margin-top:4px;padding:10px 14px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;display:flex;justify-content:space-between;align-items:center">';
+          html += '<span style="font-weight:700;font-size:13px">Total Bills</span>';
+          html += '<span style="font-weight:800;font-size:16px;color:var(--danger)">&#x9F3;' + rAfZ(myTotal, 0) + ' Tk</span>';
+          html += '</div>';
+          hist.innerHTML = html;
+        }
       }
 
       // ── SUMMARY ──────────────────────────────────────────────────
@@ -3621,35 +3749,6 @@
         });
         h += "</tbody></table>";
         document.getElementById("sum-individual").innerHTML = h;
-        const payers = MEMBERS.filter((m) => md[m.id].bal < 0)
-          .map((m) => ({ name: m.name, amt: Math.abs(md[m.id].bal) }))
-          .sort((a, b) => b.amt - a.amt);
-        const rcvrs = MEMBERS.filter((m) => md[m.id].bal > 0)
-          .map((m) => ({ name: m.name, amt: md[m.id].bal }))
-          .sort((a, b) => b.amt - a.amt);
-        const el2 = document.getElementById("sum-settle");
-        if (!payers.length && !rcvrs.length) {
-          el2.innerHTML = '<div class="empty">🎉 Everything is settled!</div>';
-          return;
-        }
-        let sh = "";
-        if (payers.length) {
-          sh +=
-            '<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:700;color:var(--danger);margin-bottom:6px">🔴 Will pay</div>';
-          payers.forEach((p) => {
-            sh += `<div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--dbg);border-radius:7px;margin-bottom:5px"><span style="font-weight:600">${p.name}</span><span style="font-weight:700;color:var(--danger)">৳${rAfZ(p.amt, 0)} to pay</span></div>`;
-          });
-          sh += "</div>";
-        }
-        if (rcvrs.length) {
-          sh +=
-            '<div><div style="font-size:12px;font-weight:700;color:var(--success);margin-bottom:6px">🟢 Will receive</div>';
-          rcvrs.forEach((r) => {
-            sh += `<div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--sbg);border-radius:7px;margin-bottom:5px"><span style="font-weight:600">${r.name}</span><span style="font-weight:700;color:var(--success)">৳${rAfZ(r.amt, 0)} to receive</span></div>`;
-          });
-          sh += "</div>";
-        }
-        el2.innerHTML = sh;
       }
 
       // ── VOTE ─────────────────────────────────────────────────────
